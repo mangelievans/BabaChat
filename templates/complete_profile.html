@@ -1,0 +1,37 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Complete Your Profile</title>
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <main class="profile-container">
+        <h1>What is your name?</h1>
+
+        <p>
+            Your name will appear above your username on your posts
+            and profile.
+        </p>
+
+        <form method="POST" action="{{ url_for('complete_profile') }}">
+            <label for="display_name">Display name</label>
+
+            <input
+                type="text"
+                id="display_name"
+                name="display_name"
+                maxlength="50"
+                value="{{ display_name }}"
+                placeholder="e.g. Evans Mangeli"
+                required
+            >
+
+            <button type="submit">Save name</button>
+        </form>
+    </main>
+</body>
+</html>

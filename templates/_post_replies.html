@@ -1,0 +1,35 @@
+{% from "_emoji_sticker_picker.html" import emoji_sticker_picker %}
+<details class="post-replies">
+    <summary>↩ Reply <span>{{ reply_counts.get(target_post.id, 0) }}</span></summary>
+    <div class="post-replies-panel">
+        {% set replies = post_replies.get(target_post.id, []) %}
+        {% if replies %}
+        <div class="post-replies-list">
+            {% for reply in replies %}
+            <article class="post-reply">
+                <div class="post-reply-meta">
+                    <a class="profile-link" href="{{ url_for('user_profile', username=reply.author.username) }}">@{{ reply.author.username }}</a>
+                    <span aria-hidden="true">·</span>
+                    <time>{{ reply.created_at|pretty_time }}</time>
+                </div>
+                {% if reply.body|reply_text %}<p>{{ reply.body|reply_text }}</p>{% endif %}
+                {% if reply.body|reply_sticker %}
+                <div class="sticker-art" role="img" aria-label="Sticker">{{ reply.body|reply_sticker }}</div>
+                {% endif %}
+            </article>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="post-replies-empty">No replies yet. Start the conversation.</p>
+        {% endif %}
+        <form method="POST" action="{{ url_for('create_post_reply', post_id=target_post.id) }}" class="post-reply-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            {% if reply_return_to_username is defined and reply_return_to_username %}
+            <input type="hidden" name="return_to_username" value="{{ reply_return_to_username }}">
+            {% endif %}
+            <textarea name="body" placeholder="Post your reply" aria-label="Write a reply" maxlength="5000"></textarea>
+            {{ emoji_sticker_picker("reply-" ~ target_post.id) }}
+            <button type="submit">Reply</button>
+        </form>
+    </div>
+</details>

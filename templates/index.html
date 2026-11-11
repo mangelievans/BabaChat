@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Welcome · Baba Chat{% endblock %}
+{% block content %}
+<section class="hero">
+  <div class="hero-copy">
+    <div class="eyebrow">YOUR SPACE TO CONNECT</div>
+    <h1>Good conversations<br><span>start here.</span></h1>
+    <p>Send messages, share photos and videos, and keep in touch from one simple place.</p>
+    <div class="hero-actions">
+      <a class="button primary" href="{{ url_for('register') }}">Create your account <span>→</span></a>
+      <a class="button secondary" href="{{ url_for('login') }}">I already have an account</a>
+    </div>
+    <div class="feature-row">
+      <div><b>01</b><span>Private accounts</span></div>
+      <div><b>02</b><span>Direct messages</span></div>
+      <div><b>03</b><span>Media sharing</span></div>
+    </div>
+  </div>
+  <div class="preview-wrap">
+    <div class="preview-card">
+      <div class="preview-head"><div class="avatar">M</div><div><strong>Mangeli</strong><small>online in this preview</small></div><span class="dots">•••</span></div>
+      <div class="day-label">TODAY</div>
+      <div class="bubble incoming">Hey! Did you get the photos? <small>10:41</small></div>
+      <div class="photo-tile"><div class="sun"></div><div class="hill hill-one"></div><div class="hill hill-two"></div><span>Weekend memories</span></div>
+      <div class="bubble outgoing">Yes! They look amazing ✨ <small>10:42</small></div>
+      <div class="fake-input">Write a message… <span>＋　➤</span></div>
+    </div>
+    <div class="floating-note"><span class="note-icon">↗</span><div><b>Share the moment</b><small>Photos, videos, words</small></div></div>
+  </div>
+</section>
+{% endblock %}

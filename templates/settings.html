@@ -1,0 +1,105 @@
+
+{% extends "base.html" %}
+
+{% block title %}Account Settings | Baba Chat{% endblock %}
+
+{% block content %}
+<div class="settings-page">
+  <h1>Account Settings</h1>
+  <p>Manage your password and account.</p>
+
+<section class="card" id="profile">
+  <h2>Profile information</h2>
+  <div class="profile-photo-preview">
+    {% if user.profile_image %}
+      <img src="{{ url_for('uploaded_file', filename=user.profile_image) }}" alt="Current profile photo">
+    {% else %}
+      <span>{{ user.username[0]|upper }}</span>
+    {% endif %}
+  </div>
+  <form method="POST" action="{{ url_for('settings') }}" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="action" value="update_profile">
+
+    <label for="display_name">Display name</label>
+    <input id="display_name" type="text" name="display_name" maxlength="50" value="{{ user.display_name or '' }}">
+
+    <label for="bio">Bio</label>
+    <textarea id="bio" name="bio" maxlength="280" rows="4">{{ user.bio or '' }}</textarea>
+
+    <label for="profile_image">Profile photo</label>
+    <input id="profile_image" type="file" name="profile_image" accept="image/png,image/jpeg,image/gif,image/webp">
+    {% if user.profile_image %}
+    <label class="remove-photo-option"><input type="checkbox" name="remove_profile_image" value="yes"> Remove current photo</label>
+    {% endif %}
+
+    <label for="location">Location</label>
+    <input id="location" type="text" name="location" maxlength="100" value="{{ user.location or '' }}">
+
+    <label for="website">Website</label>
+    <input id="website" type="url" name="website" maxlength="255" value="{{ user.website or '' }}" placeholder="https://example.com">
+
+    <button type="submit">Save profile</button>
+  </form>
+  <a class="profile-view-link" href="{{ url_for('user_profile', username=user.username) }}">View profile</a>
+</section>
+
+<section class="card">
+  <h2>Change password</h2>
+  <p>Update your login details below.</p>
+
+  <h2>Change password</h2>
+  <form method="POST" action="{{ url_for('settings') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="action" value="change_password">
+
+    <label for="current_password">Current password</label>
+    <input id="current_password" type="password"
+           name="current_password" autocomplete="current-password"
+           required>
+
+    <label for="new_password">New password</label>
+    <input id="new_password" type="password"
+           name="new_password" minlength="8"
+           autocomplete="new-password" required>
+
+    <label for="confirm_password">Confirm new password</label>
+    <input id="confirm_password" type="password"
+           name="confirm_password" minlength="8"
+           autocomplete="new-password" required>
+
+    <button type="submit">Change password</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Delete account</h2>
+  <p>
+    Deleting your account is permanent. Your account and messages
+    will be removed, and associated uploaded media will be deleted
+    where possible.
+  </p>
+
+  <form method="POST" action="{{ url_for('settings') }}"
+        onsubmit="return confirm('Are you sure you want to delete your account permanently?');">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="action" value="delete_account">
+
+    <label for="delete_password">Your current password</label>
+    <input id="delete_password" type="password"
+           name="delete_password" autocomplete="current-password"
+           required>
+    <p>Are you sure you want to delete your account?</p>
+    <label for="delete_confirmation_yes">
+      <input id="delete_confirmation_yes" type="checkbox"
+             name="delete_confirmation" value="Yes" required>
+      Yes, delete my account permanently
+    </label>
+
+    <button type="submit" class="danger-button">
+      Permanently delete my account
+    </button>
+  </form>
+</section>
+</div>
+{% endblock %}
