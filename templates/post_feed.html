@@ -1,0 +1,539 @@
+
+
+{% extends "base.html" %}
+{% from "_emoji_sticker_picker.html" import emoji_sticker_picker %}
+
+{% block title %}Posts | Baba Chat{% endblock %}
+
+{% block content %}
+<div class="feed-page">
+  <aside class="feed-sidebar">
+    <div class="brand-pill">
+      <span class="brand-mark">B</span>
+      <div>
+        <small>Baba Chat</small>
+        <strong>@{{ session.get('username', 'community') }} {% if current_user.is_verified %}<span class="verified-badge" title="Verified account" aria-label="Verified account">✓</span>{% endif %}</strong>
+      </div>
+    </div>
+
+    <nav class="feed-nav" aria-label="Main navigation">
+      <a href="{{ url_for('post_feed') }}" class="active">Home</a>
+      <a href="{{ url_for('inbox') }}">Messages</a>
+      <a href="{{ url_for('settings') }}">Settings</a>
+    </nav>
+  </aside>
+
+  <main class="feed-main">
+    <header class="feed-header">
+      <h1>Home</h1>
+      <button type="button" class="brand-icon" aria-label="Open composer">B</button>
+    </header>
+
+    <section class="composer-panel">
+      <form method="POST" action="{{ url_for('create_post') }}" class="composer-form" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="composer-row">
+          <div class="user-badge">{{ session.get('username', 'C')[0:1] | upper }}</div>
+          <textarea
+            name="body"
+            rows="4"
+            maxlength="5000"
+            placeholder="What's happening?"
+          ></textarea>
+        </div>
+
+        <input type="hidden" name="sticker" class="sticker-input" value="">
+        <div class="post-media-preview" id="post-media-preview" hidden>
+          <img id="post-image-preview" alt="Selected post image" hidden>
+          <video id="post-video-preview" controls hidden></video>
+          <div class="selected-sticker-preview" hidden><span></span><button type="button" data-clear-sticker aria-label="Remove selected sticker">×</button></div>
+          <div class="post-media-preview-footer">
+            <span id="post-media-filename"></span>
+            <button type="button" id="remove-post-media">Remove</button>
+          </div>
+        </div>
+
+        <div class="composer-actions">
+          <div class="composer-tools">
+            <div class="composer-picker-wrap">
+              <button type="button" class="picker-toggle" data-picker-target="post-emoji-picker" aria-label="Choose emoji" title="Choose emoji">😊</button>
+              <button type="button" class="picker-toggle" data-picker-target="post-sticker-picker" aria-label="Choose sticker" title="Choose sticker">🎨</button>
+              <div class="picker-panel emoji-picker-panel" id="post-emoji-picker" hidden></div>
+              <div class="picker-panel sticker-picker-panel" id="post-sticker-picker" hidden>
+                <button type="button" class="sticker-choice" data-sticker-key="heart" aria-label="Heart sticker">❤️</button>
+                <button type="button" class="sticker-choice" data-sticker-key="laugh" aria-label="Laughing sticker">😂</button>
+                <button type="button" class="sticker-choice" data-sticker-key="love" aria-label="Love sticker">🥰</button>
+                <button type="button" class="sticker-choice" data-sticker-key="cool" aria-label="Cool sticker">😎</button>
+                <button type="button" class="sticker-choice" data-sticker-key="party" aria-label="Party sticker">🎉</button>
+                <button type="button" class="sticker-choice" data-sticker-key="thumbs-up" aria-label="Thumbs-up sticker">👍</button>
+              </div>
+            </div>
+            <button type="button" class="post-upload-button" data-media-accept="image/*" aria-label="Attach an image" title="Attach an image">📷</button>
+            <button type="button" class="post-upload-button" data-media-accept="video/mp4,video/quicktime,video/webm,video/x-m4v" aria-label="Attach a video" title="Attach a video">🎥</button>
+            <input id="post-media-input" type="file" name="media" accept="image/*,video/mp4,video/quicktime,video/webm,video/x-m4v" hidden>
+          </div>
+          <button type="submit" class="primary-post-btn">Post</button>
+        </div>
+      </form>
+    </section>
+
+    <div class="feed-divider"></div>
+
+    <section class="posts-list">
+      {% for post in posts %}
+        {% set target_post = post.original_post if post.post_type == 'repost' else post %}
+
+        <article class="post-card">
+          {% if post.author.profile_image %}
+            <a class="post-avatar-link" href="{{ url_for('user_profile', username=post.author.username) }}" aria-label="View @{{ post.author.username }}'s profile">
+              <img class="user-badge small post-author-avatar" src="{{ url_for('uploaded_file', filename=post.author.profile_image) }}" alt="{{ (post.author.display_name or post.author.username) }}'s profile photo">
+            </a>
+          {% else %}
+            <a class="post-avatar-link" href="{{ url_for('user_profile', username=post.author.username) }}" aria-label="View @{{ post.author.username }}'s profile">
+              <div class="user-badge small">{{ post.author.username[0:1] | upper }}</div>
+            </a>
+          {% endif %}
+
+          <div class="post-content">
+            {% if post.post_type == 'repost' %}
+              <p class="repost-label"><strong>@{{ post.author.username }}</strong> reposted</p>
+            {% endif %}
+
+            <div class="post-header-row">
+              <div class="post-author-meta">
+                <strong><span class="display-name">
+                  {{ post.author.display_name or post.author.username }}
+                </span> {% if post.author.is_verified %}<span class="verified-badge" title="Verified account" aria-label="Verified account">✓</span>{% endif %}
+                <span class="post-author-username">@{{ post.author.username }}</span></strong>
+                <span>·</span>
+                <time>{{ post.created_at | pretty_time }}</time>
+              </div>
+
+              {% if target_post %}
+                <details class="post-menu">
+                  <summary>⋯</summary>
+                  <div class="post-menu-panel">
+                    <form method="POST" action="{{ url_for('repost_post', post_id=target_post.id) }}" class="menu-form">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                      <button type="submit" class="menu-choice-btn">🔁 Repost</button>
+                    </form>
+                    <button type="button" class="menu-choice-btn quote-choice-trigger" data-post-id="{{ post.id }}" data-quote-url="{{ url_for('quote_post', post_id=target_post.id) }}">💬 Quote</button>
+
+                    {% if post.user_id == session.get('user_id') or is_admin %}
+                      <form method="POST" action="{{ url_for('delete_post', post_id=post.id) }}" class="menu-form" onsubmit="return confirm('Delete this post?');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button type="submit" class="danger-menu-btn">🗑 {% if post.user_id == session.get('user_id') %}Delete{% else %}Delete post{% endif %}</button>
+                      </form>
+                    {% endif %}
+                  </div>
+                </details>
+
+                <div class="repost-choice-dialog" data-dialog-for="{{ post.id }}" aria-live="polite">
+                  <div class="repost-choice-box">
+                    <p>Write your quote</p>
+                    <form method="POST" action="{{ url_for('quote_post', post_id=target_post.id) }}" class="quote-dialog-form">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                      <textarea name="body" placeholder="Add your thoughts..." maxlength="5000" rows="4"></textarea>
+                      {{ emoji_sticker_picker("quote-" ~ post.id) }}
+                      <button type="submit">Publish quote</button>
+                    </form>
+                  </div>
+                </div>
+              {% else %}
+                <details class="post-menu">
+                  <summary>⋯</summary>
+                  <div class="post-menu-panel">
+                    {% if post.user_id == session.get('user_id') or is_admin %}
+                      <form method="POST" action="{{ url_for('delete_post', post_id=post.id) }}" class="menu-form" onsubmit="return confirm('Delete this post?');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button type="submit" class="danger-menu-btn">🗑 {% if post.user_id == session.get('user_id') %}Delete{% else %}Delete post{% endif %}</button>
+                      </form>
+                    {% endif %}
+                  </div>
+                </details>
+              {% endif %}
+            </div>
+
+            {% if post.post_type == 'quote' %}
+              <div class="post-copy">{{ post.body }}</div>
+              {% if post.media and post.media.media_type == 'sticker' %}
+                <div class="sticker-art" role="img" aria-label="Sticker">{{ post.media.media_name|sticker_emoji }}</div>
+              {% endif %}
+
+              {% if post.original_post %}
+                <div class="quoted-post">
+                  <p><strong>{{ post.original_post.author.display_name or post.original_post.author.username }}</strong>{% if post.original_post.author.is_verified %} <span class="verified-badge" title="Verified account" aria-label="Verified account">✓</span>{% endif %}<span class="quoted-username">@{{ post.original_post.author.username }}</span></p>
+                  <p>{{ post.original_post.body }}</p>
+                  {% if post.original_post.media %}
+                    {% if post.original_post.media.media_type == 'sticker' %}
+                      <div class="sticker-art" role="img" aria-label="Sticker">{{ post.original_post.media.media_name|sticker_emoji }}</div>
+                    {% elif post.original_post.media.media_type == 'image' %}
+                      <a href="{{ url_for('uploaded_file', filename=post.original_post.media.media_name) }}" target="_blank" rel="noopener"><img class="post-attachment-image" src="{{ url_for('uploaded_file', filename=post.original_post.media.media_name) }}" alt="Image attached to post"></a>
+                    {% else %}
+                      <video class="post-attachment-video" controls preload="metadata"><source src="{{ url_for('uploaded_file', filename=post.original_post.media.media_name) }}"></video>
+                    {% endif %}
+                  {% endif %}
+                  <small>{{ post.original_post.created_at | pretty_time }}</small>
+                </div>
+              {% endif %}
+            {% elif post.post_type == 'repost' %}
+              {% if post.original_post %}
+                <div class="quoted-post">
+                  <p><strong>{{ post.original_post.author.display_name or post.original_post.author.username }}</strong>{% if post.original_post.author.is_verified %} <span class="verified-badge" title="Verified account" aria-label="Verified account">✓</span>{% endif %}<span class="quoted-username">@{{ post.original_post.author.username }}</span></p>
+                  <p>{{ post.original_post.body }}</p>
+                  {% if post.original_post.media %}
+                    {% if post.original_post.media.media_type == 'sticker' %}
+                      <div class="sticker-art" role="img" aria-label="Sticker">{{ post.original_post.media.media_name|sticker_emoji }}</div>
+                    {% elif post.original_post.media.media_type == 'image' %}
+                      <a href="{{ url_for('uploaded_file', filename=post.original_post.media.media_name) }}" target="_blank" rel="noopener"><img class="post-attachment-image" src="{{ url_for('uploaded_file', filename=post.original_post.media.media_name) }}" alt="Image attached to post"></a>
+                    {% else %}
+                      <video class="post-attachment-video" controls preload="metadata"><source src="{{ url_for('uploaded_file', filename=post.original_post.media.media_name) }}"></video>
+                    {% endif %}
+                  {% endif %}
+                  <small>{{ post.original_post.created_at | pretty_time }}</small>
+                </div>
+              {% else %}
+                <p class="muted-copy">This original post is no longer available.</p>
+              {% endif %}
+            {% else %}
+              <div class="post-copy">{{ post.body }}</div>
+              {% if post.media %}
+                {% if post.media.media_type == 'sticker' %}
+                  <div class="sticker-art" role="img" aria-label="Sticker">{{ post.media.media_name|sticker_emoji }}</div>
+                {% elif post.media.media_type == 'image' %}
+                  <a href="{{ url_for('uploaded_file', filename=post.media.media_name) }}" target="_blank" rel="noopener"><img class="post-attachment-image" src="{{ url_for('uploaded_file', filename=post.media.media_name) }}" alt="Image attached to post"></a>
+                {% else %}
+                  <video class="post-attachment-video" controls preload="metadata"><source src="{{ url_for('uploaded_file', filename=post.media.media_name) }}"></video>
+                {% endif %}
+              {% endif %}
+            {% endif %}
+
+            <div class="post-actions">
+              {% if target_post %}
+                <form method="POST" action="{{ url_for('toggle_like', post_id=target_post.id) }}" class="post-action-form">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <button type="submit" class="action-btn{% if target_post.id in liked_post_ids %} liked{% endif %}" aria-pressed="{{ 'true' if target_post.id in liked_post_ids else 'false' }}">
+                    {% if target_post.id in liked_post_ids %}♥{% else %}♡{% endif %}
+                    <span>{{ like_counts.get(target_post.id, 0) }}</span>
+                  </button>
+                </form>
+
+                <form method="POST" action="{{ url_for('repost_post', post_id=target_post.id) }}" class="post-action-form">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <button type="submit" class="action-btn" aria-label="Repost this post">
+                    🔁 <span>{{ repost_counts.get(target_post.id, 0) }}</span>
+                  </button>
+                </form>
+
+                <button type="button" class="action-btn quote-choice-trigger" data-post-id="{{ post.id }}" aria-label="Quote this post">
+                  💬
+                </button>
+
+                <button type="button" class="action-btn copy-link" onclick="navigator.clipboard.writeText(window.location.origin + '/posts/{{ target_post.id }}')">
+                  📤
+                </button>
+              {% else %}
+                <span class="muted-copy">This post is unavailable.</span>
+              {% endif %}
+            </div>
+            {% if target_post %}
+              {% include "_post_replies.html" %}
+            {% endif %}
+          </div>
+        </article>
+      {% else %}
+        <div class="empty-feed">
+          <div class="empty-mark">✦</div>
+          <h3>No posts yet</h3>
+          <p>Be the first to share something with the community.</p>
+        </div>
+      {% endfor %}
+    </section>
+  </main>
+</div>
+
+<script>
+  (function () {
+    const menuPanels = document.querySelectorAll('.post-menu-panel');
+    const mediaInput = document.getElementById('post-media-input');
+    const mediaPreview = document.getElementById('post-media-preview');
+    const imagePreview = document.getElementById('post-image-preview');
+    const videoPreview = document.getElementById('post-video-preview');
+    const mediaFilename = document.getElementById('post-media-filename');
+    const stickerInput = document.querySelector('.composer-form .sticker-input');
+    let previewUrl = null;
+
+    function clearPostMedia() {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      previewUrl = null;
+      mediaInput.value = '';
+      imagePreview.removeAttribute('src');
+      videoPreview.removeAttribute('src');
+      videoPreview.replaceChildren();
+      imagePreview.hidden = true;
+      videoPreview.hidden = true;
+      mediaPreview.hidden = true;
+      mediaFilename.textContent = '';
+    }
+
+    document.querySelectorAll('.post-upload-button').forEach(function (button) {
+      button.addEventListener('click', function () {
+        mediaInput.accept = button.dataset.mediaAccept;
+        mediaInput.click();
+      });
+    });
+
+    mediaInput.addEventListener('change', function () {
+      const file = mediaInput.files[0];
+      if (!file) {
+        clearPostMedia();
+        return;
+      }
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      previewUrl = URL.createObjectURL(file);
+      mediaFilename.textContent = file.name;
+      mediaPreview.hidden = false;
+
+      if (file.type.startsWith('image/')) {
+        imagePreview.src = previewUrl;
+        imagePreview.hidden = false;
+        videoPreview.hidden = true;
+      } else if (file.type.startsWith('video/')) {
+        videoPreview.src = previewUrl;
+        videoPreview.hidden = false;
+        imagePreview.hidden = true;
+      } else {
+        clearPostMedia();
+      }
+    });
+
+    document.getElementById('remove-post-media').addEventListener('click', function () {
+      clearPostMedia();
+      stickerInput.value = '';
+      stickerInput.dispatchEvent(new Event('change', {bubbles: true}));
+    });
+
+    stickerInput.addEventListener('change', function () {
+      const selected = stickerInput.value
+        ? Array.from(document.querySelectorAll('.composer-form .sticker-choice')).find(function (button) {
+            return button.dataset.stickerKey === stickerInput.value;
+          })
+        : null;
+      const preview = document.querySelector('.post-media-preview .selected-sticker-preview');
+      preview.hidden = !selected;
+      preview.querySelector('span').textContent = selected ? selected.textContent : '';
+      mediaPreview.hidden = !selected && !mediaInput.files.length;
+    });
+
+    function closeAllDialogs() {
+      document.querySelectorAll('.repost-choice-dialog').forEach(function (dialog) {
+        dialog.classList.remove('show');
+      });
+      menuPanels.forEach(function (panel) {
+        const menu = panel.closest('.post-menu');
+        if (menu) menu.removeAttribute('open');
+      });
+    }
+
+    function formatTime(value) {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return 'just now';
+      return date.toLocaleString([], {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    }
+
+    function escapeHtml(value) {
+      const element = document.createElement('span');
+      element.textContent = value == null ? '' : String(value);
+      return element.innerHTML;
+    }
+
+    function prependRepostCard(postData) {
+      const list = document.querySelector('.posts-list');
+      if (!list || !postData || !postData.original_post) return;
+
+      const original = postData.original_post;
+      const author = escapeHtml(postData.author_username || 'User');
+      const authorDisplayName = escapeHtml(postData.author_display_name || postData.author_username || 'User');
+      const authorProfileImage = escapeHtml(postData.author_profile_image || '');
+      const originalDisplayName = escapeHtml(original.author_display_name || original.author_username || 'User');
+      const originalAuthor = escapeHtml(original.author_username || 'User');
+      const originalBody = escapeHtml(original.body || 'This post has no text.');
+      const quoteBody = escapeHtml(postData.body);
+      const isQuote = postData.post_type === 'quote';
+      const authorBadge = postData.author_verified ? '<span class="verified-badge" title="Verified account" aria-label="Verified account">✓</span>' : '';
+      const originalBadge = original.author_verified ? '<span class="verified-badge" title="Verified account" aria-label="Verified account">✓</span>' : '';
+      const authorProfileUrl = '/profile/' + encodeURIComponent(postData.author_username || 'User');
+      const originalMediaUrl = escapeHtml(original.media_url);
+      const originalMedia = original.media_url
+        ? original.media_type === 'image'
+          ? `<a href="${originalMediaUrl}" target="_blank" rel="noopener"><img class="post-attachment-image" src="${originalMediaUrl}" alt="Image attached to post"></a>`
+          : `<video class="post-attachment-video" controls preload="metadata"><source src="${originalMediaUrl}"></video>`
+        : original.media_type === 'sticker'
+          ? `<div class="sticker-art" role="img" aria-label="Sticker">${escapeHtml(original.sticker)}</div>`
+          : '';
+      const quoteMedia = isQuote && postData.media_type === 'sticker'
+        ? `<div class="sticker-art" role="img" aria-label="Sticker">${escapeHtml(postData.sticker)}</div>`
+        : '';
+
+      const article = document.createElement('article');
+      article.className = 'post-card';
+      article.innerHTML = `
+        ${authorProfileImage
+          ? `<a class="post-avatar-link" href="${authorProfileUrl}" aria-label="View @${author}'s profile"><img class="user-badge small post-author-avatar" src="${authorProfileImage}" alt="${authorDisplayName}'s profile photo"></a>`
+          : `<a class="post-avatar-link" href="${authorProfileUrl}" aria-label="View @${author}'s profile"><div class="user-badge small">${escapeHtml(author[0] || 'U').toUpperCase()}</div></a>`}
+        <div class="post-content">
+          ${isQuote ? '' : `<p class="repost-label"><strong>@${author}</strong> reposted</p>`}
+          <div class="post-header-row">
+            <div class="post-author-meta">
+              <strong><span class="display-name">${authorDisplayName}</span> <span class="post-author-username">@${author}</span></strong>
+              ${authorBadge}
+              <span>·</span>
+              <time>${formatTime(postData.created_at)}</time>
+            </div>
+          </div>
+          ${isQuote ? `<div class="post-copy">${quoteBody}</div>${quoteMedia}` : ''}
+          <div class="quoted-post">
+            <p><strong>${originalDisplayName}</strong> ${originalBadge}<span class="quoted-username">@${originalAuthor}</span></p>
+            <p>${originalBody}</p>
+            ${originalMedia}
+            <small>${formatTime(original.created_at)}</small>
+          </div>
+          <div class="post-actions">
+            <form method="POST" action="/posts/${original.id}/like" class="post-action-form">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button type="submit" class="action-btn" aria-label="Like this post">♡ <span>0</span></button>
+            </form>
+            <form method="POST" action="/posts/${original.id}/repost" class="post-action-form">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button type="submit" class="action-btn" aria-label="Repost this post">🔁 <span>0</span></button>
+            </form>
+            <button type="button" class="action-btn quote-choice-trigger" data-post-id="${postData.id}" aria-label="Quote this post">💬</button>
+            <button type="button" class="action-btn copy-link" onclick="navigator.clipboard.writeText(window.location.origin + '/posts/${original.id}')">📤</button>
+          </div>
+          <div class="repost-choice-dialog" data-dialog-for="${postData.id}" aria-live="polite">
+            <div class="repost-choice-box">
+              <p>Write your quote</p>
+              <form method="POST" action="/posts/${original.id}/quote" class="quote-dialog-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <textarea name="body" placeholder="Add your thoughts..." maxlength="5000" rows="4"></textarea>
+                <div class="composer-picker-wrap">
+                  <button type="button" class="picker-toggle" data-picker-target="quote-${postData.id}-emoji-picker" aria-label="Choose emoji" title="Choose emoji">😊</button>
+                  <button type="button" class="picker-toggle" data-picker-target="quote-${postData.id}-sticker-picker" aria-label="Choose sticker" title="Choose sticker">🎨</button>
+                  <div class="picker-panel emoji-picker-panel" id="quote-${postData.id}-emoji-picker" hidden></div>
+                  <div class="picker-panel sticker-picker-panel" id="quote-${postData.id}-sticker-picker" hidden>
+                    <button type="button" class="sticker-choice" data-sticker-key="heart" aria-label="Heart sticker">❤️</button>
+                    <button type="button" class="sticker-choice" data-sticker-key="laugh" aria-label="Laughing sticker">😂</button>
+                    <button type="button" class="sticker-choice" data-sticker-key="love" aria-label="Love sticker">🥰</button>
+                    <button type="button" class="sticker-choice" data-sticker-key="cool" aria-label="Cool sticker">😎</button>
+                    <button type="button" class="sticker-choice" data-sticker-key="party" aria-label="Party sticker">🎉</button>
+                    <button type="button" class="sticker-choice" data-sticker-key="thumbs-up" aria-label="Thumbs-up sticker">👍</button>
+                  </div>
+                  <input type="hidden" name="sticker" class="sticker-input" value="">
+                  <div class="selected-sticker-preview" hidden><span></span><button type="button" data-clear-sticker aria-label="Remove selected sticker">×</button></div>
+                </div>
+                <button type="submit">Publish quote</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      `;
+
+      list.prepend(article);
+    }
+
+    document.addEventListener('click', function (event) {
+      const clickedInsideMenu = event.target.closest('.post-menu');
+      const clickedInsideDialog = event.target.closest('.repost-choice-dialog');
+
+      if (event.target.matches('.repost-choice-dialog') || (!clickedInsideMenu && !clickedInsideDialog)) {
+        closeAllDialogs();
+      }
+    });
+
+    document.addEventListener('click', function (event) {
+      const button = event.target.closest('.quote-choice-trigger');
+      if (button) {
+        const postId = button.dataset.postId;
+        const dialog = document.querySelector('.repost-choice-dialog[data-dialog-for="' + postId + '"]');
+        closeAllDialogs();
+        if (dialog) {
+          dialog.classList.add('show');
+        }
+      }
+    });
+
+    function updateLikeButton(button, liked, count) {
+      if (!button) return;
+      const heart = liked ? '♥' : '♡';
+      button.innerHTML = heart + ' <span>' + count + '</span>';
+      button.classList.toggle('liked', liked);
+      button.setAttribute('aria-pressed', String(liked));
+    }
+
+    document.addEventListener('submit', async function (event) {
+      const form = event.target;
+      if (!form || !form.matches('.post-action-form, .menu-form, .quote-dialog-form')) return;
+      event.preventDefault();
+
+      const scrollY = window.scrollY;
+      const action = form.getAttribute('action') || '';
+
+      try {
+        const response = await fetch(action, {
+          method: 'POST',
+          body: new FormData(form),
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error('Request failed');
+        }
+
+        if (action.includes('/delete')) {
+          const card = form.closest('.post-card');
+          if (card) card.remove();
+        }
+
+        if (action.includes('/repost')) {
+          const result = await response.json();
+          if (result.success && result.post) {
+            prependRepostCard(result.post);
+          }
+        }
+
+        if (action.includes('/like')) {
+          const result = await response.json();
+          if (result.success !== undefined) {
+            const target = form.closest('.post-card');
+            const likeButton = target ? target.querySelector('.action-btn') : null;
+            if (likeButton) {
+              updateLikeButton(likeButton, result.liked, result.like_count);
+            }
+          }
+        }
+
+        if (action.includes('/quote')) {
+          const result = await response.json();
+          if (result.success && result.post) {
+            prependRepostCard(result.post);
+          }
+        }
+
+        window.scrollTo({ top: scrollY, left: 0, behavior: 'auto' });
+        closeAllDialogs();
+      } catch (error) {
+        console.error('Post action failed:', error);
+        form.submit();
+      }
+    });
+  })();
+</script>
+{% endblock %}

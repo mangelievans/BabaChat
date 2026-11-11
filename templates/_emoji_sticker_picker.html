@@ -1,0 +1,17 @@
+{% macro emoji_sticker_picker(prefix) -%}
+<div class="composer-picker-wrap">
+  <button type="button" class="picker-toggle" data-picker-target="{{ prefix }}-emoji-picker" aria-label="Choose emoji" title="Choose emoji">😊</button>
+  <button type="button" class="picker-toggle" data-picker-target="{{ prefix }}-sticker-picker" aria-label="Choose sticker" title="Choose sticker">🎨</button>
+  <div class="picker-panel emoji-picker-panel" id="{{ prefix }}-emoji-picker" hidden></div>
+  <div class="picker-panel sticker-picker-panel" id="{{ prefix }}-sticker-picker" hidden>
+    <button type="button" class="sticker-choice" data-sticker-key="heart" aria-label="Heart sticker">❤️</button>
+    <button type="button" class="sticker-choice" data-sticker-key="laugh" aria-label="Laughing sticker">😂</button>
+    <button type="button" class="sticker-choice" data-sticker-key="love" aria-label="Love sticker">🥰</button>
+    <button type="button" class="sticker-choice" data-sticker-key="cool" aria-label="Cool sticker">😎</button>
+    <button type="button" class="sticker-choice" data-sticker-key="party" aria-label="Party sticker">🎉</button>
+    <button type="button" class="sticker-choice" data-sticker-key="thumbs-up" aria-label="Thumbs-up sticker">👍</button>
+  </div>
+  <input type="hidden" name="sticker" class="sticker-input" value="">
+  <div class="selected-sticker-preview" hidden><span></span><button type="button" data-clear-sticker aria-label="Remove selected sticker">×</button></div>
+</div>
+{%- endmacro %}

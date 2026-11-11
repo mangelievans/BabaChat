@@ -1,0 +1,191 @@
+
+{% extends "base.html" %}
+
+{% block title %}Manage Users | Baba Chat{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+
+    <h1>Manage Accounts</h1>
+
+    <p>
+        Manage account verification and remove accounts with their associated content.
+    </p>
+
+    <div class="admin-table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Username</th>
+                    <th>Verification</th>
+                    <th>Verification action</th>
+                    <th>Account action</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                {% for user in users %}
+                <tr>
+                    <td>
+                        @{{ user.username }}
+
+                        {% if user.is_verified %}
+                            <span class="verified-badge"
+                                  title="Verified account"
+                                  aria-label="Verified account">✓</span>
+                        {% endif %}
+                    </td>
+
+                    <td>
+                        {% if user.is_verified %}
+                            <span class="status-verified">
+                                Verified
+                            </span>
+                        {% else %}
+                            <span class="status-unverified">
+                                Not verified
+                            </span>
+                        {% endif %}
+                    </td>
+
+                    <td>
+                        <form
+                            method="POST"
+                            action="{{ url_for(
+                                'toggle_verification',
+                                user_id=user.id
+                            ) }}"
+                        >
+                            <input
+                                type="hidden"
+                                name="csrf_token"
+                                value="{{ csrf_token }}"
+                            >
+
+                            {% if user.is_verified %}
+                                <button
+                                    type="submit"
+                                    class="revoke-button"
+                                >
+                                    Revoke verification
+                                </button>
+                            {% else %}
+                                <button
+                                    type="submit"
+                                    class="verify-button"
+                                >
+                                    Verify account
+                                </button>
+                            {% endif %}
+                        </form>
+                    </td>
+                    <td>
+                        <form
+                            method="POST"
+                            action="{{ url_for('admin_delete_user', user_id=user.id) }}"
+                            onsubmit="return confirm('Permanently remove this account and its posts, messages, and uploaded media?');"
+                        >
+                            <input
+                                type="hidden"
+                                name="csrf_token"
+                                value="{{ csrf_token }}"
+                            >
+                            <button type="submit" class="delete-account-button">
+                                Remove account
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="4">
+                        No registered accounts found.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <p class="admin-note">
+        Only administrators can manage verification.
+    </p>
+
+</div>
+
+<style>
+.admin-container {
+    max-width: 950px;
+    margin: 30px auto;
+    padding: 20px;
+}
+
+.admin-table-wrapper {
+    width: 100%;
+    overflow-x: auto;
+    margin-top: 24px;
+}
+
+.admin-container table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.admin-container th,
+.admin-container td {
+    text-align: left;
+    padding: 14px 12px;
+    border-bottom: 1px solid #dddddd;
+}
+
+.admin-container th {
+    background: #f5f5f5;
+}
+
+.admin-container button {
+    cursor: pointer;
+    padding: 9px 13px;
+    border: 0;
+    border-radius: 7px;
+    color: white;
+}
+
+.verify-button {
+    background: #16803c;
+}
+
+.revoke-button {
+    background: #b42318;
+}
+
+.delete-account-button {
+    background: #8f1d25;
+}
+
+.status-verified {
+    color: #16803c;
+    font-weight: bold;
+}
+
+.status-unverified {
+    color: #666666;
+}
+
+.admin-note {
+    margin-top: 20px;
+    color: #666666;
+    font-size: 14px;
+}
+
+@media (max-width: 600px) {
+    .admin-container {
+        padding: 12px;
+    }
+
+    .admin-container th,
+    .admin-container td {
+        padding: 10px 8px;
+    }
+}
+</style>
+{% endblock %}

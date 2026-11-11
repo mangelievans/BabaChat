@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% block title %}Search Accounts · Mangeli Messenger{% endblock %}
+{% block content %}
+<div class="section-heading">
+  <div>
+    <div class="eyebrow">PEOPLE</div>
+    <h1>Search</h1>
+  </div>
+  <div class="round-icon" aria-hidden="true">⌕</div>
+</div>
+
+<form class="user-search-form" action="{{ url_for('user_search') }}" method="get" role="search">
+  <label for="username-search">Username</label>
+  <div class="user-search-control">
+    <input
+      id="username-search"
+      type="search"
+      name="q"
+      value="{{ query }}"
+      placeholder="Search usernames"
+      autocomplete="off"
+      role="combobox"
+      aria-autocomplete="list"
+      aria-controls="user-search-suggestions"
+      aria-expanded="false"
+    >
+    <button type="submit">Search</button>
+  </div>
+  <div id="user-search-suggestions" class="search-suggestions" role="listbox" hidden></div>
+</form>
+
+{% if query %}
+<section class="search-results" aria-live="polite">
+  <h2>Matching accounts</h2>
+  <div class="people-list">
+    {% for user in users %}
+    <a class="person-row" href="{{ url_for('user_profile', username=user.username) }}">
+      <div class="avatar">{{ user.username[0]|upper }}</div>
+      <div class="person-info">
+        <strong class="person-name-row">
+          <span class="person-name">{{ user.username }}</span>
+          {% if user.is_verified %}<span class="verified-badge" title="Verified account" aria-label="Verified account">✓</span>{% endif %}
+        </strong>
+        <span>Open conversation</span>
+      </div>
+      <span class="arrow" aria-hidden="true">→</span>
+    </a>
+    {% else %}
+    <div class="empty-state"><h2>No matching accounts</h2></div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<script>
+(() => {
+  const form = document.querySelector('.user-search-form');
+  const input = document.getElementById('username-search');
+  const suggestions = document.getElementById('user-search-suggestions');
+  let debounceTimer;
+  let activeRequest;
+
+  function closeSuggestions() {
+    suggestions.hidden = true;
+    input.setAttribute('aria-expanded', 'false');
+  }
+
+  function renderSuggestions(users) {
+    suggestions.replaceChildren();
+    if (!users.length) {
+      const empty = document.createElement('div');
+      empty.className = 'search-suggestion-empty';
+      empty.textContent = 'No matching accounts';
+      suggestions.appendChild(empty);
+    } else {
+      users.forEach(function (user) {
+        const link = document.createElement('a');
+        link.className = 'search-suggestion';
+        link.href = user.url;
+        link.setAttribute('role', 'option');
+
+        const avatar = document.createElement('span');
+        avatar.className = 'avatar';
+        avatar.textContent = user.username.charAt(0).toUpperCase();
+        link.appendChild(avatar);
+
+        const name = document.createElement('span');
+        name.className = 'search-suggestion-name';
+        name.textContent = user.username;
+        link.appendChild(name);
+
+        if (user.is_verified) {
+          const badge = document.createElement('span');
+          badge.className = 'verified-badge';
+          badge.title = 'Verified account';
+          badge.setAttribute('aria-label', 'Verified account');
+          badge.textContent = '✓';
+          link.appendChild(badge);
+        }
+
+        const arrow = document.createElement('span');
+        arrow.className = 'arrow';
+        arrow.textContent = '→';
+        link.appendChild(arrow);
+        suggestions.appendChild(link);
+      });
+    }
+
+    suggestions.hidden = false;
+    input.setAttribute('aria-expanded', 'true');
+  }
+
+  input.addEventListener('input', function () {
+    const query = input.value.trim();
+    window.clearTimeout(debounceTimer);
+    if (activeRequest) activeRequest.abort();
+    if (!query) {
+      suggestions.replaceChildren();
+      closeSuggestions();
+      return;
+    }
+
+    debounceTimer = window.setTimeout(async function () {
+      activeRequest = new AbortController();
+      try {
+        const response = await fetch(
+          `{{ url_for('user_search_suggestions') }}?q=${encodeURIComponent(query)}`,
+          {headers: {'Accept': 'application/json'}, signal: activeRequest.signal}
+        );
+        if (!response.ok) throw new Error('Search suggestions unavailable');
+        const result = await response.json();
+        renderSuggestions(result.users || []);
+      } catch (error) {
+        if (error.name !== 'AbortError') closeSuggestions();
+      }
+    }, 120);
+  });
+
+  input.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape') closeSuggestions();
+  });
+
+  document.addEventListener('click', function (event) {
+    if (!form.contains(event.target)) closeSuggestions();
+  });
+})();
+</script>
+{% endblock %}

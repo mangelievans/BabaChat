@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Chats · Mangeli Messenger{% endblock %}
+{% block content %}
+<div class="section-heading"><div><div class="eyebrow">YOUR MESSAGES</div><h1>Chats</h1><p class="muted">Continue a conversation with someone you have messaged.</p></div><div class="round-icon">✉</div></div>
+<div class="people-list">
+  {% for user in users %}
+  {% set last = previews.get(user.id) %}
+  <a class="person-row" href="{{ url_for('chat', user_id=user.id) }}">
+    <div class="avatar">{{ user.username[0]|upper }}</div><div class="person-info"><strong class="person-name-row"><span class="person-name">{{ user.username }}</span>{% if user.is_verified %}<span class="verified-badge" title="Verified account" aria-label="Verified account">✓</span>{% endif %}</strong><span>{% if last and last.body %}{{ last.body[:55] }}{% elif last and last.media_name %}Media attachment{% else %}Start a conversation{% endif %}</span></div><span class="arrow">→</span>
+  </a>
+  {% else %}
+  <div class="empty-state"><div class="empty-icon">◎</div><h2>No conversations yet</h2><p>People will appear here after you send or receive a message.</p></div>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html>
+{% extends "base.html" %}
+{% block title %}Chat with {{ other.username }} · Baba Chat{% endblock %}
+{% block content %}
+<div class="chat-shell" data-other-user-id="{{ other.id }}" data-current-user-id="{{ session.get('user_id') }}">
+  <div class="chat-header"><a class="back-link" href="{{ url_for('inbox') }}">←</a><a class="chat-profile-avatar" href="{{ url_for('user_profile', username=other.username) }}"><div class="avatar">{{ other.username[0]|upper }}</div></a><div><strong><a class="chat-profile-name" href="{{ url_for('user_profile', username=other.username) }}">{{ other.username }}</a>{% if other.is_verified %} <span class="verified-badge" title="Verified account" aria-label="Verified account">✓</span>{% endif %}</strong><small id="connection-status">Connecting…</small></div></div>
+  <div class="messages" id="messages">
+    {% for message in messages %}
+    <div class="message-line {% if message.sender_id == session.get('user_id') %}mine{% else %}theirs{% endif %}" data-message-id="{{ message.id }}">
+      <div class="message-bubble">
+        {% if message.body %}<div class="message-text">{{ message.body }}</div>{% endif %}
+        {% if message.media_type == 'sticker' %}
+          <div class="sticker-art" role="img" aria-label="Sticker">{{ message.media_name|sticker_emoji }}</div>
+        {% elif message.media_name %}
+          {% if message.media_type == 'image' %}
+            <a href="{{ url_for('uploaded_file', filename=message.media_name) }}" target="_blank" rel="noopener"><img class="shared-image" src="{{ url_for('uploaded_file', filename=message.media_name) }}" alt="Shared image"></a>
+          {% else %}
+            <video class="shared-video" controls preload="metadata"><source src="{{ url_for('uploaded_file', filename=message.media_name) }}"></video>
+          {% endif %}
+        {% endif %}
+        <div class="message-meta">
+          <time>{{ message.created_at|pretty_time }}</time>
+          {% if message.sender_id == session.get('user_id') %}
+          <form method="post" action="{{ url_for('delete_message', message_id=message.id) }}" class="delete-message-form">
+            <input type="hidden" name="csrf_token" value="{{ delete_csrf_token }}">
+            <button type="submit" class="message-delete-btn" aria-label="Delete sent message">Delete</button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <div class="chat-empty" id="chat-empty"><div class="empty-icon">✦</div><p>This is the beginning of your conversation with <b>{{ other.username }}</b>.</p>Send a message or share a photo/video below.</div>
+    {% endfor %}
+  </div>
+  <form class="composer" id="composer" method="post" enctype="multipart/form-data">
+    <div class="composer-picker-wrap">
+      <button type="button" class="picker-toggle" data-picker-target="chat-emoji-picker" aria-label="Choose emoji" title="Choose emoji">😊</button>
+      <button type="button" class="picker-toggle" data-picker-target="chat-sticker-picker" aria-label="Choose sticker" title="Choose sticker">🎨</button>
+      <div class="picker-panel emoji-picker-panel" id="chat-emoji-picker" hidden></div>
+      <div class="picker-panel sticker-picker-panel" id="chat-sticker-picker" hidden>
+        <button type="button" class="sticker-choice" data-sticker-key="heart" aria-label="Heart sticker">❤️</button>
+        <button type="button" class="sticker-choice" data-sticker-key="laugh" aria-label="Laughing sticker">😂</button>
+        <button type="button" class="sticker-choice" data-sticker-key="love" aria-label="Love sticker">🥰</button>
+        <button type="button" class="sticker-choice" data-sticker-key="cool" aria-label="Cool sticker">😎</button>
+        <button type="button" class="sticker-choice" data-sticker-key="party" aria-label="Party sticker">🎉</button>
+        <button type="button" class="sticker-choice" data-sticker-key="thumbs-up" aria-label="Thumbs-up sticker">👍</button>
+      </div>
+      <input type="hidden" name="sticker" class="sticker-input" value="">
+      <div class="selected-sticker-preview" hidden><span></span><button type="button" data-clear-sticker aria-label="Remove selected sticker">×</button></div>
+    </div>
+    <label class="attach-button" title="Attach a photo or video">＋<input type="file" name="media" id="media-input" accept="image/*,video/mp4,video/quicktime,video/webm,video/x-m4v"></label>
+    <input class="message-input" type="text" name="body" id="message-body" placeholder="Write a message…" maxlength="5000" autocomplete="off">
+    <button class="send-button" id="send-button" type="submit" aria-label="Send message">➤</button>
+    <div class="composer-note">Emoji, stickers, images and videos up to 100 MB.</div>
+  </form>
+</div>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
+<script>
+(() => {
+  const shell = document.querySelector('.chat-shell');
+  const otherUserId = Number(shell.dataset.otherUserId);
+  const currentUserId = Number(shell.dataset.currentUserId);
+  const messages = document.getElementById('messages');
+  const form = document.getElementById('composer');
+  const bodyInput = document.getElementById('message-body');
+  const mediaInput = document.getElementById('media-input');
+  const stickerInput = form.querySelector('.sticker-input');
+  const sendButton = document.getElementById('send-button');
+  const status = document.getElementById('connection-status');
+  const empty = document.getElementById('chat-empty');
+
+  function scrollBottom() { messages.scrollTop = messages.scrollHeight; }
+  function appendMessage(message) {
+    if (empty) empty.remove();
+    // Avoid showing a message twice if a reconnect or duplicate event occurs.
+    if (document.querySelector(`[data-message-id="${message.id}"]`)) return;
+    const line = document.createElement('div');
+    line.className = 'message-line ' + (Number(message.sender_id) === currentUserId ? 'mine' : 'theirs');
+    line.dataset.messageId = message.id;
+    const bubble = document.createElement('div');
+    bubble.className = 'message-bubble';
+    if (message.body) {
+      const text = document.createElement('div');
+      text.className = 'message-text';
+      text.textContent = message.body;
+      bubble.appendChild(text);
+    }
+    if (message.sticker) {
+      const sticker = document.createElement('div');
+      sticker.className = 'sticker-art';
+      sticker.setAttribute('role', 'img');
+      sticker.setAttribute('aria-label', 'Sticker');
+      sticker.textContent = message.sticker;
+      bubble.appendChild(sticker);
+    }
+    if (message.media_url) {
+      if (message.media_type === 'image') {
+        const link = document.createElement('a');
+        link.href = message.media_url; link.target = '_blank'; link.rel = 'noopener';
+        const img = document.createElement('img'); img.className = 'shared-image'; img.src = message.media_url; img.alt = 'Shared image';
+        link.appendChild(img); bubble.appendChild(link);
+      } else {
+        const video = document.createElement('video'); video.className = 'shared-video'; video.controls = true; video.preload = 'metadata';
+        const source = document.createElement('source'); source.src = message.media_url;
+        video.appendChild(source); bubble.appendChild(video);
+      }
+    }
+    const meta = document.createElement('div'); meta.className = 'message-meta';
+    const time = document.createElement('time'); time.textContent = message.created_at;
+    meta.appendChild(time);
+    if (Number(message.sender_id) === currentUserId) {
+      const deleteForm = document.createElement('form');
+      deleteForm.method = 'post';
+      deleteForm.action = `/messages/${message.id}/delete`;
+      deleteForm.className = 'delete-message-form';
+      const csrfInput = document.createElement('input');
+      csrfInput.type = 'hidden';
+      csrfInput.name = 'csrf_token';
+      csrfInput.value = '{{ delete_csrf_token }}';
+      deleteForm.appendChild(csrfInput);
+      const deleteButton = document.createElement('button');
+      deleteButton.type = 'submit';
+      deleteButton.className = 'message-delete-btn';
+      deleteButton.setAttribute('aria-label', 'Delete sent message');
+      deleteButton.textContent = 'Delete';
+      deleteForm.appendChild(deleteButton);
+      meta.appendChild(deleteForm);
+    }
+    bubble.appendChild(meta); line.appendChild(bubble); messages.appendChild(line); scrollBottom();
+  }
+
+  const socket = io();
+  socket.on('connect', () => {
+    status.textContent = 'Live · connected';
+    socket.emit('join_chat', {other_user_id: otherUserId});
+  });
+  socket.on('disconnect', () => { status.textContent = 'Reconnecting…'; });
+  socket.on('new_message', (message) => {
+    if ((Number(message.sender_id) === currentUserId && Number(message.recipient_id) === otherUserId) ||
+        (Number(message.sender_id) === otherUserId && Number(message.recipient_id) === currentUserId)) {
+      appendMessage(message);
+    }
+  });
+  socket.on('message_deleted', (data) => {
+    const line = document.querySelector(`[data-message-id="${data.message_id}"]`);
+    if (line) line.remove();
+  });
+
+  document.addEventListener('submit', async (event) => {
+    const deleteForm = event.target.closest('.delete-message-form');
+    if (!deleteForm) return;
+    event.preventDefault();
+    if (!window.confirm('Delete this message?')) return;
+
+    const button = deleteForm.querySelector('button[type="submit"]');
+    button.disabled = true;
+    try {
+      const response = await fetch(deleteForm.action, {
+        method: 'POST',
+        body: new FormData(deleteForm),
+        headers: {'Accept': 'application/json'}
+      });
+      const result = await response.json();
+      if (!response.ok || !result.ok) throw new Error(result.error || 'Message could not be deleted.');
+      const line = deleteForm.closest('.message-line');
+      if (line) line.remove();
+    } catch (error) {
+      alert(error.message || 'Could not delete the message. Try again.');
+      button.disabled = false;
+    }
+  });
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (!bodyInput.value.trim() && !mediaInput.files.length && !stickerInput.value) return;
+    sendButton.disabled = true;
+    try {
+      const response = await fetch(window.location.href, {
+        method: 'POST', body: new FormData(form), headers: {'Accept': 'application/json'}
+      });
+      const result = await response.json();
+      if (!response.ok || !result.ok) throw new Error(result.error || 'Message could not be sent.');
+      bodyInput.value = ''; mediaInput.value = ''; stickerInput.value = '';
+      stickerInput.dispatchEvent(new Event('change', {bubbles: true}));
+      bodyInput.focus();
+    } catch (error) {
+      alert(error.message || 'Could not send message. Check your connection and try again.');
+    } finally { sendButton.disabled = false; }
+  });
+  scrollBottom();
+})();
+</script>
+{% endblock %}
+
+</html>

@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}{{ list_title }} · {{ profile_user.display_name or profile_user.username }}{% endblock %}
+{% block content %}
+<section class="profile-timeline follow-list-page">
+    <a class="profile-back-link" href="{{ url_for('user_profile', username=profile_user.username) }}">← Back to @{{ profile_user.username }}'s profile</a>
+    <div class="profile-timeline-heading">
+        <h2>{{ list_title }}</h2>
+        <span>{{ users|length }}</span>
+    </div>
+    {% if users %}
+        <ul class="follow-list">
+            {% for user in users %}
+                <li>
+                    <a class="follow-list-user" href="{{ url_for('user_profile', username=user.username) }}">
+                        {% if user.profile_image %}
+                            <img class="follow-list-avatar" src="{{ url_for('uploaded_file', filename=user.profile_image) }}" alt="">
+                        {% else %}
+                            <span class="follow-list-avatar follow-list-avatar-fallback" aria-hidden="true">{{ user.username[0]|upper }}</span>
+                        {% endif %}
+                        <span class="follow-list-names">
+                            <strong>{{ user.display_name or user.username }}{% if user.is_verified %} <span class="verified-badge" title="Verified account" aria-label="Verified account">✓</span>{% endif %}</strong>
+                            <span>@{{ user.username }}</span>
+                        </span>
+                    </a>
+                </li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p class="follow-list-empty">No {{ list_title|lower }} yet.</p>
+    {% endif %}
+</section>
+{% endblock %}

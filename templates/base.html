@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Baba Chat{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="{{ url_for('index') }}"><span class="brand-icon">B</span> Baba Chat</a>
+    <nav>
+      {% if session.get('user_id') %}
+        <a href="{{url_for('post_feed')}}">Home</a>
+        <a href="{{ url_for('inbox') }}">Chats</a>
+        <a href="{{ url_for('user_search') }}">Search</a>
+        <a href="{{ url_for('user_profile', username=session.get('username')) }}">My Profile</a>
+        <a href="{{ url_for('post_feed') }}">Public Posts</a>
+        {% if current_user_is_admin %}<a href="{{ url_for('admin_users') }}">Admin</a>{% endif %}
+        <span class="nav-user">@{{ session.get('username') }}</span>
+        <a href="{{ url_for('settings') }}">Account Settings</a>
+        <a class="nav-button" href="{{ url_for('logout') }}">Log out</a>
+      {% else %}
+        <a href="{{ url_for('login') }}">Log in</a>
+        <a class="nav-button" href="{{ url_for('register') }}">Create account</a>
+      {% endif %}
+    </nav>
+  </header>
+  <main class="page">
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <div class="flash-list">{% for message in messages %}<div class="flash">{{ message }}</div>{% endfor %}</div>
+      {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+  <footer>Built in honor of H.E Raila Odinga, C.G.H</footer>
+  <script>
+    document.querySelectorAll('.flash').forEach(function (message) {
+      window.setTimeout(function () {
+        message.classList.add('flash-dismissing');
+        window.setTimeout(function () {
+          const list = message.parentElement;
+          message.remove();
+          if (list && list.children.length === 0) list.remove();
+        }, 250);
+      }, 4750);
+    });
+
+    const commonEmojis = ['😀', '😂', '🥰', '😍', '😊', '😉', '😭', '😎', '🤔', '🙌', '👏', '🙏', '❤️', '🔥', '🎉', '👍', '👎', '💯', '✨', '🤗'];
+    function populateEmojiPicker(panel) {
+      if (panel.childElementCount) return;
+      commonEmojis.forEach(function (emoji) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'emoji-choice';
+        button.textContent = emoji;
+        button.setAttribute('aria-label', 'Insert ' + emoji);
+        panel.appendChild(button);
+      });
+    }
+    document.querySelectorAll('.emoji-picker-panel').forEach(populateEmojiPicker);
+
+    function updateStickerPreview(form) {
+      const stickerInput = form.querySelector('.sticker-input');
+      const preview = form.querySelector('.selected-sticker-preview');
+      const mediaPreview = form.querySelector('.post-media-preview');
+      const fileInput = form.querySelector('input[type="file"]');
+      const selected = stickerInput && stickerInput.value
+        ? Array.from(form.querySelectorAll('.sticker-choice')).find(function (button) {
+            return button.dataset.stickerKey === stickerInput.value;
+          })
+        : null;
+      if (preview) {
+        preview.hidden = !selected;
+        preview.querySelector('span').textContent = selected ? selected.textContent : '';
+      }
+      if (mediaPreview) {
+        mediaPreview.hidden = !(fileInput && fileInput.files.length) && !selected;
+      }
+    }
+
+    document.addEventListener('change', function (event) {
+      if (event.target.matches('.sticker-input')) {
+        updateStickerPreview(event.target.form);
+      } else if (event.target.matches('input[type="file"]') && event.target.files.length) {
+        const form = event.target.form;
+        const stickerInput = form.querySelector('.sticker-input');
+        if (stickerInput) {
+          stickerInput.value = '';
+          updateStickerPreview(form);
+        }
+      }
+    });
+
+    document.addEventListener('click', function (event) {
+      const pickerToggle = event.target.closest('.picker-toggle');
+      if (pickerToggle) {
+        const panel = document.getElementById(pickerToggle.dataset.pickerTarget);
+        if (panel && panel.classList.contains('emoji-picker-panel')) populateEmojiPicker(panel);
+        document.querySelectorAll('.picker-panel').forEach(function (item) {
+          if (item !== panel) item.hidden = true;
+        });
+        if (panel) panel.hidden = !panel.hidden;
+        return;
+      }
+
+      const emojiChoice = event.target.closest('.emoji-choice');
+      if (emojiChoice) {
+        const form = emojiChoice.closest('form');
+        const input = form && form.querySelector('[name="body"]');
+        if (!input) return;
+        const start = input.selectionStart === null ? input.value.length : input.selectionStart;
+        const end = input.selectionEnd === null ? start : input.selectionEnd;
+        input.setRangeText(emojiChoice.textContent, start, end, 'end');
+        input.focus();
+        emojiChoice.closest('.picker-panel').hidden = true;
+        return;
+      }
+
+      const stickerChoice = event.target.closest('.sticker-choice');
+      if (stickerChoice) {
+        const form = stickerChoice.closest('form');
+        const stickerInput = form.querySelector('.sticker-input');
+        const fileInput = form.querySelector('input[type="file"]');
+        if (fileInput) {
+          fileInput.value = '';
+          fileInput.dispatchEvent(new Event('change', {bubbles: true}));
+        }
+        stickerInput.value = stickerChoice.dataset.stickerKey;
+        stickerInput.dispatchEvent(new Event('change', {bubbles: true}));
+        stickerChoice.closest('.picker-panel').hidden = true;
+        return;
+      }
+
+      const clearSticker = event.target.closest('[data-clear-sticker]');
+      if (clearSticker) {
+        const form = clearSticker.closest('form');
+        const stickerInput = form.querySelector('.sticker-input');
+        stickerInput.value = '';
+        stickerInput.dispatchEvent(new Event('change', {bubbles: true}));
+        return;
+      }
+
+      if (!event.target.closest('.composer-picker-wrap')) {
+        document.querySelectorAll('.picker-panel').forEach(function (panel) {
+          panel.hidden = true;
+        });
+      }
+    });
+  </script>
+</body>
+</html>

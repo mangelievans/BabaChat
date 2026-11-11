@@ -1,0 +1,205 @@
+
+{% extends "base.html" %}
+{% block title %}{{ profile_user.display_name or profile_user.username }} · Profile{% endblock %}
+{% block content %}
+<section class="profile-page">
+    <a class="profile-back-link" href="{{ url_for('post_feed') }}">← Back</a>
+    <div class="profile-cover"></div>
+    <div class="profile-content">
+        {% if profile_user.profile_image %}
+            <img class="profile-photo" src="{{ url_for('uploaded_file', filename=profile_user.profile_image) }}" alt="{{ profile_user.display_name or profile_user.username }}'s profile photo">
+        {% else %}
+            <div class="profile-photo profile-photo-fallback">{{ profile_user.username[0]|upper }}</div>
+        {% endif %}
+        <div class="profile-actions">
+            {% if is_own_profile %}
+                <a class="profile-action" href="{{ url_for('settings') }}#profile">Edit profile</a>
+            {% else %}
+                <form method="POST" action="{{ url_for('toggle_follow', user_id=profile_user.id) }}" class="follow-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button class="profile-action follow-action{% if is_following %} is-following{% endif %}" type="submit">
+                        {{ 'Following' if is_following else 'Follow' }}
+                    </button>
+                </form>
+                <a class="profile-action" href="{{ url_for('chat', user_id=profile_user.id) }}">Message</a>
+            {% endif %}
+        </div>
+        <h1>{{ profile_user.display_name or profile_user.username }}{% if profile_user.is_verified %} <span class="verified-badge" title="Verified account" aria-label="Verified account">✓</span>{% endif %}</h1>
+        <p class="profile-username">@{{ profile_user.username }}</p>
+        <p class="profile-bio">{{ profile_user.bio or "No bio added yet." }}</p>
+            <div class="profile-stats">
+                <a href="{{ url_for('user_follow_list', username=profile_user.username, list_type='following') }}"><strong>{{ following_count }}</strong> Following</a>
+                <a href="{{ url_for('user_follow_list', username=profile_user.username, list_type='followers') }}"><strong>{{ follower_count }}</strong> Followers</a>
+            </div>
+        <div class="profile-details">
+            {% if profile_user.location %}<p>{{ profile_user.location }}</p>{% endif %}
+            {% if profile_user.website %}<a href="{{ profile_user.website }}" target="_blank" rel="noopener noreferrer">{{ profile_user.website }}</a>{% endif %}
+            <p>
+                Joined
+                {{
+                    (profile_user.joined_date or profile_user.created_at.date())
+                    .strftime('%B %Y')
+                }}
+            </p>
+
+        </div>
+    </div>
+</section>
+
+<section class="profile-timeline" aria-labelledby="profile-posts-heading">
+    <div class="profile-timeline-heading">
+        <h2 id="profile-posts-heading">Posts</h2>
+        <span>{{ profile_posts|length }}</span>
+    </div>
+    {% for post in profile_posts %}
+    {% set target_post = post.original_post if post.post_type == 'repost' else post %}
+    <article class="profile-post">
+        {% if post.post_type == 'repost' %}
+            <p class="profile-repost-label">{{ profile_user.display_name or profile_user.username }} reposted</p>
+        {% endif %}
+        <div class="profile-post-meta">
+            <strong>{{ profile_user.display_name or profile_user.username }}{% if profile_user.is_verified %} <span class="verified-badge" title="Verified account" aria-label="Verified account">✓</span>{% endif %}</strong>
+            <span>@{{ profile_user.username }}</span>
+            <span aria-hidden="true">·</span>
+            <time>{{ post.created_at|pretty_time }}</time>
+        </div>
+        {% if post.post_type == 'quote' %}
+            <p class="profile-post-copy">{{ post.body }}</p>
+            {% if post.original_post %}
+            <div class="profile-quoted-post">
+                <strong>{{ post.original_post.author.display_name or post.original_post.author.username }}{% if post.original_post.author.is_verified %} <span class="verified-badge" title="Verified account" aria-label="Verified account">✓</span>{% endif %}</strong>
+                <span>@{{ post.original_post.author.username }}</span>
+                <p>{{ post.original_post.body }}</p>
+                {% if post.original_post.media %}
+                    {% if post.original_post.media.media_type == 'sticker' %}
+                    <div class="sticker-art" role="img" aria-label="Sticker">{{ post.original_post.media.media_name|sticker_emoji }}</div>
+                    {% elif post.original_post.media.media_type == 'image' %}
+                    <a href="{{ url_for('uploaded_file', filename=post.original_post.media.media_name) }}" target="_blank" rel="noopener"><img class="post-attachment-image" src="{{ url_for('uploaded_file', filename=post.original_post.media.media_name) }}" alt="Image attached to post"></a>
+                    {% else %}
+                    <video class="post-attachment-video" controls preload="metadata"><source src="{{ url_for('uploaded_file', filename=post.original_post.media.media_name) }}"></video>
+                    {% endif %}
+                {% endif %}
+            </div>
+            {% endif %}
+        {% elif post.post_type == 'repost' %}
+            {% if post.original_post %}
+            <div class="profile-quoted-post">
+                <strong>{{ post.original_post.author.display_name or post.original_post.author.username }}{% if post.original_post.author.is_verified %} <span class="verified-badge" title="Verified account" aria-label="Verified account">✓</span>{% endif %}</strong>
+                <span>@{{ post.original_post.author.username }}</span>
+                <p>{{ post.original_post.body }}</p>
+                {% if post.original_post.media %}
+                    {% if post.original_post.media.media_type == 'sticker' %}
+                    <div class="sticker-art" role="img" aria-label="Sticker">{{ post.original_post.media.media_name|sticker_emoji }}</div>
+                    {% elif post.original_post.media.media_type == 'image' %}
+                    <a href="{{ url_for('uploaded_file', filename=post.original_post.media.media_name) }}" target="_blank" rel="noopener"><img class="post-attachment-image" src="{{ url_for('uploaded_file', filename=post.original_post.media.media_name) }}" alt="Image attached to post"></a>
+                    {% else %}
+                    <video class="post-attachment-video" controls preload="metadata"><source src="{{ url_for('uploaded_file', filename=post.original_post.media.media_name) }}"></video>
+                    {% endif %}
+                {% endif %}
+            </div>
+            {% else %}
+            <p class="profile-post-copy">This original post is no longer available.</p>
+            {% endif %}
+        {% else %}
+            <p class="profile-post-copy">{{ post.body }}</p>
+        {% endif %}
+        {% if post.post_type != 'repost' and post.media %}
+            {% if post.media.media_type == 'sticker' %}
+            <div class="sticker-art" role="img" aria-label="Sticker">{{ post.media.media_name|sticker_emoji }}</div>
+            {% elif post.media.media_type == 'image' %}
+            <a href="{{ url_for('uploaded_file', filename=post.media.media_name) }}" target="_blank" rel="noopener"><img class="post-attachment-image" src="{{ url_for('uploaded_file', filename=post.media.media_name) }}" alt="Image attached to post"></a>
+            {% else %}
+            <video class="post-attachment-video" controls preload="metadata"><source src="{{ url_for('uploaded_file', filename=post.media.media_name) }}"></video>
+            {% endif %}
+        {% endif %}
+        {% if target_post %}
+        <div class="post-actions">
+            <form method="POST" action="{{ url_for('toggle_like', post_id=target_post.id) }}" class="post-action-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="return_to_username" value="{{ profile_user.username }}">
+            <button type="submit" class="action-btn{% if target_post.id in liked_post_ids %} liked{% endif %}" aria-label="{% if target_post.id in liked_post_ids %}Unlike{% else %}Like{% endif %} this post" aria-pressed="{{ 'true' if target_post.id in liked_post_ids else 'false' }}">
+                {% if target_post.id in liked_post_ids %}♥{% else %}♡{% endif %}
+                <span>{{ like_counts.get(target_post.id, 0) }}</span>
+            </button>
+            </form>
+            <form method="POST" action="{{ url_for('repost_post', post_id=target_post.id) }}" class="post-action-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="return_to_username" value="{{ profile_user.username }}">
+            <button type="submit" class="action-btn" aria-label="{% if target_post.id in reposted_post_ids %}Already reposted{% else %}Repost this post{% endif %}" aria-pressed="{{ 'true' if target_post.id in reposted_post_ids else 'false' }}">
+                🔁 <span>{{ repost_counts.get(target_post.id, 0) }}</span>
+            </button>
+            </form>
+            <p class="profile-action-feedback" role="status" aria-live="polite" hidden></p>
+            <details class="post-quote-menu">
+            <summary>💬 Quote</summary>
+            <form method="POST" action="{{ url_for('quote_post', post_id=target_post.id) }}" class="quote-inline-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="return_to_username" value="{{ profile_user.username }}">
+                <textarea name="body" placeholder="Add your thoughts..." required maxlength="5000" rows="3"></textarea>
+                <button type="submit">Publish quote</button>
+            </form>
+            </details>
+        </div>
+        {% set reply_return_to_username = profile_user.username %}
+        {% include "_post_replies.html" %}
+        {% endif %}
+    </article>
+    {% else %}
+    <div class="profile-no-posts">No posts yet.</div>
+    {% endfor %}
+</section>
+<script>
+    document.addEventListener('submit', async function (event) {
+        const form = event.target;
+        if (!form.matches('.post-action-form')) return;
+        event.preventDefault();
+
+        const button = form.querySelector('button[type="submit"]');
+        const feedback = form.closest('.post-actions').querySelector('.profile-action-feedback');
+        button.disabled = true;
+        feedback.hidden = true;
+        feedback.textContent = '';
+
+        try {
+            const response = await fetch(form.action, {
+                method: 'POST',
+                body: new FormData(form),
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            let result;
+            try {
+                result = await response.json();
+            } catch {
+                throw new Error('The action could not be completed. Please try again.');
+            }
+            if (!response.ok || result.success === undefined) {
+                throw new Error(result.message || 'The action could not be completed. Please try again.');
+            }
+
+            const count = button.querySelector('span');
+            if (form.action.includes('/like')) {
+                button.firstChild.nodeValue = result.liked ? '♥ ' : '♡ ';
+                button.classList.toggle('liked', result.liked);
+                button.setAttribute('aria-pressed', String(result.liked));
+                button.setAttribute('aria-label', (result.liked ? 'Unlike' : 'Like') + ' this post');
+                count.textContent = result.like_count;
+            } else {
+                if (result.reposted !== undefined) {
+                    button.setAttribute('aria-pressed', String(result.reposted));
+                    button.setAttribute('aria-label', result.reposted ? 'Already reposted' : 'Repost this post');
+                }
+                if (result.repost_count !== undefined) count.textContent = result.repost_count;
+                if (!result.success) {
+                    feedback.textContent = result.message;
+                    feedback.hidden = false;
+                }
+            }
+        } catch (error) {
+            feedback.textContent = error.message || 'The action could not be completed. Please try again.';
+            feedback.hidden = false;
+        } finally {
+            button.disabled = false;
+        }
+    });
+</script>
+{% endblock %}
