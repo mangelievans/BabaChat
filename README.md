@@ -54,7 +54,15 @@ python app.py
 
 Open **http://127.0.0.1:5000** in your browser. Keep the terminal open while testing.
 
-## 7. Test real-time chat
+## 7. Deploy to Render
+The repository includes a `render.yaml` Blueprint configuration. For an existing Render web service, use:
+
+- **Build command:** `pip install -r requirements.txt`
+- **Start command:** `gunicorn --worker-class gthread --threads 100 --bind 0.0.0.0:$PORT app:app`
+
+The final `app:app` means the `app` module (`app.py`) and its Flask application object (`app`). Configure `DATABASE_URL` with your Render PostgreSQL internal URL. Set `SECRET_KEY` to a long, random value; never commit production secrets. After changing the repository, push the changes to GitHub and deploy the latest commit in Render.
+
+## 8. Test real-time chat
 1. Register one account in a normal browser window.
 2. Open a private/incognito window and register a second account.
 3. Log in as the first user, select the second account, and open the same conversation in the private window as the second user.

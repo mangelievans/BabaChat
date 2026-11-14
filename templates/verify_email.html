@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}Verify Email · Mangeli Messenger{% endblock %}
+
+{% block content %}
+
+<div class="auth-layout">
+
+    <div class="auth-side">
+
+        <div class="big-symbol">✳️</div>
+
+        <h2>One more step,<br>then you're in.</h2>
+
+        <p>Verify your email to secure your Baba Chat account.</p>
+
+    </div>
+
+    <form class="auth-card" method="POST"
+
+          action="{{ url_for('verify_email') }}">
+
+        <div class="eyebrow">EMAIL VERIFICATION</div>
+
+        <h1>Verify your email</h1>
+
+        <p class="muted">
+
+            We sent a six-digit verification code to:
+
+        </p>
+
+        <p><strong>{{ email }}</strong></p>
+
+        <label for="code">Verification code</label>
+
+        <input
+
+            type="text"
+
+            id="code"
+
+            name="code"
+
+            inputmode="numeric"
+
+            autocomplete="one-time-code"
+
+            pattern="[0-9]{6}"
+
+            minlength="6"
+
+            maxlength="6"
+
+            placeholder="Enter 6-digit code"
+
+            required
+
+            autofocus
+
+        >
+
+        <button class="button primary full" type="submit">
+
+            Verify email <span>→</span>
+
+        </button>
+
+        <p class="auth-bottom">
+
+            Didn't receive the code?
+
+        </p>
+
+    </form>
+
+</div>
+
+<form method="POST" action="{{ url_for('resend_code') }}"
+
+      style="text-align:center; margin-top:15px;">
+
+    <button class="button" type="submit">
+
+        Resend verification code
+
+    </button>
+
+</form>
+
+{% endblock %}

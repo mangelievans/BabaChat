@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: mangeli-messenger
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --worker-class gthread --threads 100 --bind 0.0.0.0:$PORT app:app
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true

@@ -1,7 +1,10 @@
 import os
 import secrets
 import hmac
-from datetime import datetime, timezone
+import hashlib
+import re
+import requests
+from datetime import datetime, timezone, timedelta
 from functools import wraps
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -26,6 +29,10 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-only-change-this-secret-key")
 app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+    "pool_pre_ping": True,
+    "pool_recycle": 300,
+}
 
 # Set DATABASE_URL to a PostgreSQL connection string to use PostgreSQL.
 # SQLite remains a convenient local fallback until PostgreSQL is configured.
@@ -66,7 +73,40 @@ class User(db.Model):
         index=True
     )
     password_hash = db.Column(db.String(255), nullable=False)
+    # Email address used for account verification
+    email = db.Column(
+        db.String(254),
+        unique=True,
+        nullable=True,
+        index=True
+    )
 
+    # Email verification status
+    email_verified = db.Column(
+        db.Boolean,
+        nullable=False,
+        default=False,
+        server_default=db.false()
+    )
+
+    verification_code_hash = db.Column(db.String(64), nullable=True)
+
+    verification_expiry = db.Column(
+        db.DateTime(timezone=True),
+        nullable=True
+    )
+
+    verification_sent_at = db.Column(
+        db.DateTime(timezone=True),
+        nullable=True
+    )
+
+    verification_attempts = db.Column(
+        db.Integer,
+        nullable=False,
+        default=0,
+        server_default="0"
+    )
     created_at = db.Column(
         db.DateTime(timezone=True),
         nullable=False,
@@ -532,11 +572,67 @@ def user_follow_list(username, list_type):
         list_title=title
     )
 
+def hash_verification_code(code):
+    secret = str(app.secret_key).encode("utf-8")
+
+    return hmac.new(
+        secret,
+        code.encode("utf-8"),
+        hashlib.sha256
+    ).hexdigest()
+
+
+def send_verification_email(user):
+    script_url = os.environ.get("EMAIL_SCRIPT_URL")
+    script_secret = os.environ.get("EMAIL_SCRIPT_SECRET")
+
+    if not script_url or not script_secret:
+        raise RuntimeError("Email service configuration is missing.")
+
+    code = f"{secrets.randbelow(1000000):06d}"
+
+    now = datetime.now(timezone.utc)
+
+    user.verification_code_hash = hash_verification_code(code)
+    user.verification_expiry = now + timedelta(minutes=10)
+    user.verification_sent_at = now
+    user.verification_attempts = 0
+
+    db.session.commit()
+
+    response = requests.post(
+        script_url,
+        json={
+            "email": user.email,
+            "code": code,
+            "secret": script_secret
+        },
+        timeout=20
+    )
+
+    response.raise_for_status()
+
+    result = response.json()
+
+    if not result.get("success"):
+        raise RuntimeError(result.get("message", "Email delivery failed."))
+
+
+def timestamp_as_utc(value):
+    if value is None:
+        return None
+
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+
+    return value.astimezone(timezone.utc)
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
     if request.method == "POST":
+
         display_name = request.form.get("display_name", "").strip()
+        email = request.form.get("email", "").strip().lower()
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
 
@@ -544,7 +640,15 @@ def register():
             flash("Display name is required and must be at most 50 characters.")
             return render_template("register.html")
 
-        if len(username) < 3 or len(username) > 24 or not username.replace("_", "").isalnum():
+        if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
+            flash("Please enter a valid email address.")
+            return render_template("register.html")
+
+        if (
+            len(username) < 3
+            or len(username) > 24
+            or not username.replace("_", "").isalnum()
+        ):
             flash("Username must be 3–24 characters and use only letters, numbers, or underscores.")
             return render_template("register.html")
 
@@ -553,36 +657,180 @@ def register():
             return render_template("register.html")
 
         try:
-            db.session.add(
-                User(
-                    display_name=display_name,
-                    username=username,
-                    password_hash=generate_password_hash(password)
-                )
+            user = User(
+                display_name=display_name,
+                email=email,
+                email_verified=False,
+                username=username,
+                password_hash=generate_password_hash(password)
             )
+
+            db.session.add(user)
             db.session.commit()
-            flash("Registration successful. You can now log in.")
-            return redirect(url_for("login"))
+
+            session["pending_verification_user_id"] = user.id
+
+            try:
+                send_verification_email(user)
+
+                flash("A verification code has been sent to your email.")
+
+            except Exception:
+                app.logger.exception("Verification email delivery failed.")
+
+                flash(
+                    "Your account was created, but the verification email "
+                    "could not be sent. You can try resending the code."
+                )
+
+            return redirect(url_for("verify_email"))
 
         except IntegrityError:
             db.session.rollback()
-            flash("That username is already taken.")
+
+            flash("That username or email address is already registered.")
+
+        except Exception:
+            db.session.rollback()
+
+            app.logger.exception("Registration failed.")
+            flash("Registration failed. Please try again.")
 
     return render_template("register.html")
+
+@app.route("/verify-email", methods=["GET", "POST"])
+def verify_email():
+
+    user_id = session.get("pending_verification_user_id")
+
+    if not user_id:
+        flash("Please register or log in first.")
+        return redirect(url_for("register"))
+
+    user = db.session.get(User, user_id)
+
+    if not user:
+        session.pop("pending_verification_user_id", None)
+        return redirect(url_for("register"))
+
+    if user.email_verified:
+        session.pop("pending_verification_user_id", None)
+        flash("Your email is already verified.")
+        return redirect(url_for("login"))
+
+    if request.method == "POST":
+
+        code = request.form.get("code", "").strip()
+
+        if not re.fullmatch(r"\d{6}", code):
+            flash("Enter the six-digit verification code.")
+            return render_template("verify_email.html", email=user.email)
+
+        if user.verification_attempts >= 5:
+            flash("Too many incorrect attempts. Request a new code.")
+            return render_template("verify_email.html", email=user.email)
+
+        expiry = timestamp_as_utc(user.verification_expiry)
+
+        if not expiry or datetime.now(timezone.utc) > expiry:
+            flash("Your verification code has expired. Request a new one.")
+            return render_template("verify_email.html", email=user.email)
+
+        submitted_hash = hash_verification_code(code)
+
+        if not user.verification_code_hash or not hmac.compare_digest(
+            submitted_hash,
+            user.verification_code_hash
+        ):
+            user.verification_attempts += 1
+            db.session.commit()
+
+            flash("Incorrect verification code.")
+            return render_template("verify_email.html", email=user.email)
+
+        user.email_verified = True
+        user.verification_code_hash = None
+        user.verification_expiry = None
+        user.verification_sent_at = None
+        user.verification_attempts = 0
+
+        db.session.commit()
+
+        session.pop("pending_verification_user_id", None)
+
+        flash("Email verified successfully! You can now log in.")
+
+        return redirect(url_for("login"))
+
+    return render_template("verify_email.html", email=user.email)
+
+
+@app.route("/resend-code", methods=["POST"])
+def resend_code():
+
+    user_id = session.get("pending_verification_user_id")
+
+    if not user_id:
+        return redirect(url_for("register"))
+
+    user = db.session.get(User, user_id)
+
+    if not user or user.email_verified:
+        session.pop("pending_verification_user_id", None)
+        return redirect(url_for("login"))
+
+    last_sent = timestamp_as_utc(user.verification_sent_at)
+    now = datetime.now(timezone.utc)
+
+    if last_sent:
+        elapsed = (now - last_sent).total_seconds()
+
+        if elapsed < 60:
+            remaining = int(60 - elapsed) + 1
+            flash(f"Please wait {remaining} seconds before requesting another code.")
+            return redirect(url_for("verify_email"))
+
+    try:
+        send_verification_email(user)
+        flash("A new verification code has been sent.")
+
+    except Exception:
+        app.logger.exception("Resending verification email failed.")
+        flash("Unable to send the verification email. Please try again later.")
+
+    return redirect(url_for("verify_email"))
 
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
+
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
-        user = User.query.filter(func.lower(User.username) == username.lower()).first()
+
+        user = User.query.filter(
+            func.lower(User.username) == username.lower()
+        ).first()
+
         if user and check_password_hash(user.password_hash, password):
+
+            # Require email verification for accounts with an email address.
+            # Legacy accounts without email addresses remain accessible.
+            if user.email and not user.email_verified:
+                session.clear()
+                session["pending_verification_user_id"] = user.id
+
+                flash("Please verify your email before logging in.")
+                return redirect(url_for("verify_email"))
+
             session.clear()
             session["user_id"] = user.id
             session["username"] = user.username
+
             return redirect(url_for("post_feed"))
+
         flash("Incorrect username or password.")
+
     return render_template("login.html")
 
 @app.route("/logout")

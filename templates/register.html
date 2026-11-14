@@ -1,26 +1,74 @@
 {% extends "base.html" %}
 {% block title %}Create account · Mangeli Messenger{% endblock %}
+
 {% block content %}
 <div class="auth-layout">
-  <div class="auth-side"><div class="big-symbol">✳</div><h2>Your people,<br>one message away.</h2><p>Create an account to start your conversations.</p></div>
+
+  <div class="auth-side">
+    <div class="big-symbol">✳️</div>
+    <h2>Your people,<br>one message away.</h2>
+    <p>Create an account to start your conversations.</p>
+  </div>
+
   <form class="auth-card" method="post">
-    <div class="eyebrow">GET STARTED</div><h1>Create account</h1><p class="muted">It only takes a minute.</p>
-    
+    <div class="eyebrow">GET STARTED</div>
+    <h1>Create account</h1>
+    <p class="muted">It only takes a minute.</p>
+
     <label for="display_name">Your name</label>
     <input
-    type="text"
-    id="display_name"
-    name="display_name"
-    maxlength="50"
-    required
-    placeholder="Your Legal Name"
+      type="text"
+      id="display_name"
+      name="display_name"
+      maxlength="50"
+      autocomplete="name"
+      required
+      placeholder="Your Legal Name"
     >
 
-    <label for="username">Username</label><input id="username" name="username" autocomplete="username" minlength="3" maxlength="24" placeholder="e.g. evans_mangeli" required>
+    <label for="email">Email address</label>
+    <input
+      type="email"
+      id="email"
+      name="email"
+      autocomplete="email"
+      required
+      placeholder="you@example.com"
+    >
+    <small class="hint">We'll send you a verification code.</small>
+
+    <label for="username">Username</label>
+    <input
+      type="text"
+      id="username"
+      name="username"
+      autocomplete="username"
+      minlength="3"
+      maxlength="24"
+      placeholder="e.g. evans_mangeli"
+      required
+    >
     <small class="hint">3–24 characters: letters, numbers, underscores.</small>
-    <label for="password">Password</label><input id="password" name="password" type="password" autocomplete="new-password" minlength="8" placeholder="At least 8 characters" required>
-    <button class="button primary full" type="submit">Create account <span>→</span></button>
-    <p class="auth-bottom">Already registered? <a href="{{ url_for('login') }}">Log in</a></p>
+
+    <label for="password">Password</label>
+    <input
+      type="password"
+      id="password"
+      name="password"
+      autocomplete="new-password"
+      minlength="8"
+      placeholder="At least 8 characters"
+      required
+    >
+
+    <button class="button primary full" type="submit">
+      Create account <span>→</span>
+    </button>
+
+    <p class="auth-bottom">
+      Already registered? <a href="{{ url_for('login') }}">Log in</a>
+    </p>
   </form>
+
 </div>
 {% endblock %}
